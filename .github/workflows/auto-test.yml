@@ -20,17 +20,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: Checkout base branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.ref }}
-          path: base
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}
 
       - name: Get diff between base and PR branch
         id: diff
         run: |
-          git diff base..HEAD > pr.diff
+          git diff origin/${{ github.event.pull_request.base.ref }}..HEAD > pr.diff
           echo "diff_size=$(wc -l < pr.diff)" >> $GITHUB_OUTPUT
           cat pr.diff
 
