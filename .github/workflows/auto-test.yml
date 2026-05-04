@@ -1,0 +1,72 @@
+name: Auto Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    name: Copilot Code Review
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.ref }}
+          path: base
+
+      - name: Get diff between base and PR branch
+        id: diff
+        run: |
+          git diff base..HEAD > pr.diff
+          echo "diff_size=$(wc -l < pr.diff)" >> $GITHUB_OUTPUT
+          cat pr.diff
+
+      - name: Comment with diff summary
+        if: steps.diff.outputs.diff_size > 0
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const diff = fs.readFileSync('pr.diff', 'utf8');
+            const diffLines = diff.split('\n').length;
+            
+            const comment = `## 🤖 Automated Code Review
+            
+            **PR Analysis:**
+            - Total lines changed: ${diffLines}
+            - PR Number: #${{ github.event.pull_request.number }}
+            - Base branch: ${{ github.event.pull_request.base.ref }}
+            - Head branch: ${{ github.event.pull_request.head.ref }}
+            
+            **Review Notes:**
+            This PR has been automatically analyzed. Please review the changes carefully.
+            
+            <details>
+            <summary>View Diff Summary</summary>
+            
+            \`\`\`diff
+            ${diff.substring(0, 3000)}${diff.length > 3000 ? '\n... (truncated)' : ''}
+            \`\`\`
+            
+            </details>`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
